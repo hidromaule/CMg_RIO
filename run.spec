@@ -8,6 +8,9 @@ datas += collect_data_files("streamlit")
 datas += copy_metadata("streamlit")
 datas += [('.pop\\Lib\\site-packages\\cloudscraper', './cloudscraper')]
 datas += [('.pop\\Lib\\site-packages\\requests_toolbelt', './requests_toolbelt')]
+datas += [('.pop\\Lib\\site-packages\\selenium', './selenium')]
+datas += [('.pop\\Lib\\site-packages\\websocket', './websocket')]
+
 
 block_cipher = None
 

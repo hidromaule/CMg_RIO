@@ -7,6 +7,12 @@ import zipfile
 import pandas as pd
 import streamlit as st
 import plotly.graph_objects as go
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.webdriver.chrome.options import Options
+import time
 
 st.set_page_config(layout="wide")
 col1, col2, col3 = st.columns([1, 6, 1])
@@ -19,6 +25,16 @@ if "actualizar" not in st.session_state:
 with col3:
     if st.button("🔄 Actualizar datos"):
         st.session_state.actualizar = True
+
+#### Función para esperar a que la descarga se complete ####
+def wait_for_download(folder, timeout=60):
+    flag = "Ok"
+    for _ in range(timeout):
+        files = os.listdir(folder)
+        if files and not any(f.endswith(".crdownload") for f in files):
+            return flag
+        time.sleep(1)
+    raise TimeoutError("Descarga no completada")
 
 #### Función para descargar archivos protegidos por Cloudflare ####
 def download_zip_cloudflare(url: str, output_path: str, archivo: str):
@@ -38,6 +54,66 @@ def download_zip_cloudflare(url: str, output_path: str, archivo: str):
             f.write(chunk)
 
     #print("Se descargó el archivo:", archivo)
+
+#### Función para descargar archivos usando selenium ####
+def selenium_download(download_path,file_name):
+    options = Options()
+    options.add_argument("--headless=new")
+    options.add_argument("--disable-gpu")
+    options.add_argument("--window-size=1920,1080")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--no-sandbox")
+    options.add_argument(
+        "--user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/120.0.0.0 Safari/537.36"
+    )
+    prefs = {
+        "download.default_directory": download_path,
+        "download.prompt_for_download": False,
+        "safebrowsing.enabled": True
+    }
+    options.add_experimental_option("prefs", prefs)
+
+    driver = webdriver.Chrome(options=options)
+    wait = WebDriverWait(driver, 30)
+
+    driver.get("https://programa.coordinador.cl/operacion/pcp/bases-modelo")
+
+    # esperar a que la tabla exista
+    # wait.until(
+    #     EC.presence_of_element_located((By.XPATH, "//table"))
+    # )
+    wait.until(
+        EC.presence_of_element_located(
+            (By.XPATH, "//td[starts-with(normalize-space(), 'PROGRAMA')]")
+        )
+    )
+
+    # encontrar el botón ZIP asociado al archivo correcto
+    zip_button = wait.until(
+        EC.presence_of_element_located((
+            By.XPATH,
+            "//td[normalize-space()='" + file_name + "']/parent::tr//a[contains(@class,'descargarBtn')]"
+        ))
+    )
+
+    # forzar foco real en la fila correcta
+    driver.execute_script("""
+        arguments[0].scrollIntoView({block:'center'});
+        arguments[0].focus();
+    """, zip_button)
+
+    # pequeño delay para Angular
+    time.sleep(0.5)
+
+    # click real JS
+    driver.execute_script("arguments[0].click();", zip_button)
+
+    time.sleep(3)
+
+    flag = wait_for_download(download_path)
+    return flag
 
 #### Función para extraer archivos ZIP ####
 def extract_single_file(zip_filename, file_to_extract, extract_path='.'):
@@ -205,7 +281,9 @@ if st.session_state.actualizar:
         if os.path.isfile(file_path1) or os.path.isfile(output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")):
             pass #print("El archivo PO ya existe. No se descargará de nuevo.")
         else:
-            download_zip_cloudflare(URL1, file_path1, archivo1)    
+            flag = selenium_download(str(output_dir),archivo1)
+            if flag != "Ok":
+                print("Error en la descarga del archivo PO.")    
 
         download_zip_cloudflare(URL2, file_path2, archivo2)
 
