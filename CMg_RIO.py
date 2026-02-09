@@ -26,6 +26,20 @@ with col3:
     if st.button("🔄 Actualizar datos"):
         st.session_state.actualizar = True
 
+st.markdown(
+    """
+    <style>
+    img {
+        border-radius: 0 !important;
+    }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+with col1:
+    st.image("Assets/logo.png",width=180)
+
 #### Función para esperar a que la descarga se complete ####
 def wait_for_download(folder, timeout=60):
     flag = "Ok"
@@ -57,6 +71,7 @@ def download_zip_cloudflare(url: str, output_path: str, archivo: str):
 
 #### Función para descargar archivos usando selenium ####
 def selenium_download(download_path,file_name):
+    #### Se agregan opciones de Chrome, para funciona en modo headless ####
     options = Options()
     options.add_argument("--headless=new")
     options.add_argument("--disable-gpu")
@@ -68,6 +83,8 @@ def selenium_download(download_path,file_name):
         "AppleWebKit/537.36 (KHTML, like Gecko) "
         "Chrome/120.0.0.0 Safari/537.36"
     )
+
+    #### Se configuran y agregan las preferencias de descarga ####
     prefs = {
         "download.default_directory": download_path,
         "download.prompt_for_download": False,
@@ -75,22 +92,21 @@ def selenium_download(download_path,file_name):
     }
     options.add_experimental_option("prefs", prefs)
 
+    #### Se inicializa el driver de Chrome ####
     driver = webdriver.Chrome(options=options)
     wait = WebDriverWait(driver, 30)
 
+    #### Se abre la página de descarga ####
     driver.get("https://programa.coordinador.cl/operacion/pcp/bases-modelo")
 
-    # esperar a que la tabla exista
-    # wait.until(
-    #     EC.presence_of_element_located((By.XPATH, "//table"))
-    # )
+    #### Se espera a que la tabla de datos cargue ####
     wait.until(
         EC.presence_of_element_located(
             (By.XPATH, "//td[starts-with(normalize-space(), 'PROGRAMA')]")
         )
     )
 
-    # encontrar el botón ZIP asociado al archivo correcto
+    #### Se busca el botón ZIP asociado al archivo correcto ####
     zip_button = wait.until(
         EC.presence_of_element_located((
             By.XPATH,
@@ -98,20 +114,22 @@ def selenium_download(download_path,file_name):
         ))
     )
 
-    # forzar foco real en la fila correcta
+    #### Baja y se forzarfuerza el foco en la fila buscada ####
     driver.execute_script("""
         arguments[0].scrollIntoView({block:'center'});
         arguments[0].focus();
     """, zip_button)
 
-    # pequeño delay para Angular
+    #### Pequeño delay para estabilidad de Angular ####
     time.sleep(0.5)
 
-    # click real JS
+    #### Click en el botón de descarga ####
     driver.execute_script("arguments[0].click();", zip_button)
 
+    #### Se espera 3 segundos para cerrar el navegador ####
     time.sleep(3)
 
+    #### Se espera a que termine la descarga y se levanta un flag ####
     flag = wait_for_download(download_path)
     return flag
 
@@ -264,94 +282,96 @@ output_dir = BASE_DIR / carpeta
 output_dir.mkdir(exist_ok=True)
 
 if st.session_state.actualizar:
-    with st.spinner("Descargando y procesando datos..."):
-        print(str(datetime.datetime.now()) + " - Actualizando datos...")
-        
-        #### Se limpian los archivos antiguos en la carpeta ####
-        limpiar_archivos_antiguos(output_dir, dry_run=False)
+    
+    with col2:
+        with st.spinner("Descargando y procesando datos..."):
+            print(str(datetime.datetime.now()) + " - Actualizando datos...")
+            
+            #### Se limpian los archivos antiguos en la carpeta ####
+            limpiar_archivos_antiguos(output_dir, dry_run=False)
 
-        #### Se generan los nombres de los archivos ####
-        archivo1 = "PROGRAMA" + str(year) + today.strftime("%m") + today.strftime("%d") + ".zip"
-        archivo2 = "ENERGIA" + str(year) + today.strftime("%m") + today.strftime("%d") + ".csv"
-        file_path1 = output_dir / archivo1
-        file_path2 = output_dir / archivo2
+            #### Se generan los nombres de los archivos ####
+            archivo1 = "PROGRAMA" + str(year) + today.strftime("%m") + today.strftime("%d") + ".zip"
+            archivo2 = "ENERGIA" + str(year) + today.strftime("%m") + today.strftime("%d") + ".csv"
+            file_path1 = output_dir / archivo1
+            file_path2 = output_dir / archivo2
 
 
-        #### Se chequea si los archivos ya existen antes de descargarlos y extraerlos ####
-        if os.path.isfile(file_path1) or os.path.isfile(output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")):
-            pass #print("El archivo PO ya existe. No se descargará de nuevo.")
-        else:
-            flag = selenium_download(str(output_dir),archivo1)
-            if flag != "Ok":
-                print("Error en la descarga del archivo PO.")    
+            #### Se chequea si los archivos ya existen antes de descargarlos y extraerlos ####
+            if os.path.isfile(file_path1) or os.path.isfile(output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")):
+                pass #print("El archivo PO ya existe. No se descargará de nuevo.")
+            else:
+                flag = selenium_download(str(output_dir),archivo1)
+                if flag != "Ok":
+                    print("Error en la descarga del archivo PO.")    
 
-        download_zip_cloudflare(URL2, file_path2, archivo2)
+            download_zip_cloudflare(URL2, file_path2, archivo2)
 
-        if os.path.isfile(output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")):
-            pass #print("El archivo PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx ya existe. No se extraerá de nuevo.")
-        else:
-            extract_single_file(file_path1, "PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx", output_dir)
+            if os.path.isfile(output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")):
+                pass #print("El archivo PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx ya existe. No se extraerá de nuevo.")
+            else:
+                extract_single_file(file_path1, "PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx", output_dir)
 
-        #### Se elimina el archivo ZIP descargado para ahorrar espacio ####
-        if os.path.exists(file_path1):
-            os.remove(file_path1)
-            pass #print(f"Se eliminó el archivo {archivo1}")
-        else:
-            pass #print(f"El archivo {archivo1} no existe.")
+            #### Se elimina el archivo ZIP descargado para ahorrar espacio ####
+            if os.path.exists(file_path1):
+                os.remove(file_path1)
+                pass #print(f"Se eliminó el archivo {archivo1}")
+            else:
+                pass #print(f"El archivo {archivo1} no existe.")
 
-        #### Se generan las rutas a los archivos de datos ####
-        PO = output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")
-        energia = file_path2
+            #### Se generan las rutas a los archivos de datos ####
+            PO = output_dir / ("PO" + today.strftime("%y") + today.strftime("%m") + today.strftime("%d") + ".xlsx")
+            energia = file_path2
 
-        #### Se genera el DataFrame de energía, se eliminan las 3 primeras filas y las columnas innecesarias ####
-        df_energia = pd.read_csv(
-            energia,
-            sep=";",
-            skiprows=4,
-            header=0
-        )
-        df_energia = df_energia.drop(columns=["FECHA","NOMBRE CONFIGURACIÓN","UNIDAD GENERADORA","POTENCIA MÁXIMA","POTENCIA MÍNIMA","POTENCIA INSTRUIDA","ESTADO OPERACIONAL","ESTADO OPERACIONAL COMBUSTIBLE","CONSIGNAS","CONSIGNA LIMITACIÓN","MOTIVO","SENTIDO FLUJO","ESTADO DE EMBALSE","Nº DOCUMENTO","CENTRO DE CONTROL","Fecha de Edición Registro"],axis=1)
+            #### Se genera el DataFrame de energía, se eliminan las 3 primeras filas y las columnas innecesarias ####
+            df_energia = pd.read_csv(
+                energia,
+                sep=";",
+                skiprows=4,
+                header=0
+            )
+            df_energia = df_energia.drop(columns=["FECHA","NOMBRE CONFIGURACIÓN","UNIDAD GENERADORA","POTENCIA MÁXIMA","POTENCIA MÍNIMA","POTENCIA INSTRUIDA","ESTADO OPERACIONAL","ESTADO OPERACIONAL COMBUSTIBLE","CONSIGNAS","CONSIGNA LIMITACIÓN","MOTIVO","SENTIDO FLUJO","ESTADO DE EMBALSE","Nº DOCUMENTO","CENTRO DE CONTROL","Fecha de Edición Registro"],axis=1)
 
-        #### Se transforma el DataFrame de energía en una lista de listas ####
-        lista_energia = df_energia.values.tolist()
+            #### Se transforma el DataFrame de energía en una lista de listas ####
+            lista_energia = df_energia.values.tolist()
 
-        #### Se genera el DataFrame del PO se eliminan las 6 primeras filas y las columnas innecesarias ####
-        df_PO = pd.read_excel(PO, sheet_name="TCO", skiprows=6)
-        df_PO = df_PO.drop(df_PO.columns[[0,1,4,5,8,9]],axis=1)
+            #### Se genera el DataFrame del PO se eliminan las 6 primeras filas y las columnas innecesarias ####
+            df_PO = pd.read_excel(PO, sheet_name="TCO", skiprows=6)
+            df_PO = df_PO.drop(df_PO.columns[[0,1,4,5,8,9]],axis=1)
 
-        #### Se generan los diccionarios de CMg por bloque ####
-        bloque_1 = dict(zip(df_PO["CENTRALES"].dropna(), df_PO["CMg [USD/MWh]"].dropna()))
-        bloque_2 = dict(zip(df_PO["CENTRALES.1"].dropna(), df_PO["CMg [USD/MWh].1"].dropna()))
-        bloque_3 = dict(zip(df_PO["CENTRALES.2"].dropna(), df_PO["CMg [USD/MWh].2"].dropna()))
+            #### Se generan los diccionarios de CMg por bloque ####
+            bloque_1 = dict(zip(df_PO["CENTRALES"].dropna(), df_PO["CMg [USD/MWh]"].dropna()))
+            bloque_2 = dict(zip(df_PO["CENTRALES.1"].dropna(), df_PO["CMg [USD/MWh].1"].dropna()))
+            bloque_3 = dict(zip(df_PO["CENTRALES.2"].dropna(), df_PO["CMg [USD/MWh].2"].dropna()))
 
-        #### Se genera una lista auxiliar y se cruza con los diccionarios de costo marginal ####
-        lista_CMg = []
+            #### Se genera una lista auxiliar y se cruza con los diccionarios de costo marginal ####
+            lista_CMg = []
 
-        for fila in lista_energia:
-            nueva_fila = fila.copy()
-            hora = fila[0]
+            for fila in lista_energia:
+                nueva_fila = fila.copy()
+                hora = fila[0]
 
-            bloque = obtener_bloque(hora)
+                bloque = obtener_bloque(hora)
 
-            for i in range(3, 12):  # columnas 4 a 12
-                nombre = fila[i]
+                for i in range(3, 12):  # columnas 4 a 12
+                    nombre = fila[i]
 
-                if nombre == "ERNC":
-                    nueva_fila[i] = 0
-                else:
-                    nueva_fila[i] = bloque.get(nombre, None)  
-                    # .get evita error si el nombre no existe
+                    if nombre == "ERNC":
+                        nueva_fila[i] = 0
+                    else:
+                        nueva_fila[i] = bloque.get(nombre, None)  
+                        # .get evita error si el nombre no existe
 
-            lista_CMg.append(nueva_fila)
+                lista_CMg.append(nueva_fila)
 
-        #### Se invierte la lista para que vaya de 00:00 a 23:59 ####
-        lista_CMg = lista_CMg[::-1]
+            #### Se invierte la lista para que vaya de 00:00 a 23:59 ####
+            lista_CMg = lista_CMg[::-1]
 
-        #### Se rellenan los valores None con el valor anterior ####
-        for i in range(len(lista_CMg)):
-            for k in range(3, 12):
-                if lista_CMg[i][k] is None:
-                    lista_CMg[i][k] = lista_CMg[i-1][k]
+            #### Se rellenan los valores None con el valor anterior ####
+            for i in range(len(lista_CMg)):
+                for k in range(3, 12):
+                    if lista_CMg[i][k] is None:
+                        lista_CMg[i][k] = lista_CMg[i-1][k]
         
     st.session_state.actualizar = False
     print(str(datetime.datetime.now()) + " - Datos actualizados.")

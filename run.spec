@@ -11,7 +11,6 @@ datas += [('.pop\\Lib\\site-packages\\requests_toolbelt', './requests_toolbelt')
 datas += [('.pop\\Lib\\site-packages\\selenium', './selenium')]
 datas += [('.pop\\Lib\\site-packages\\websocket', './websocket')]
 
-
 block_cipher = None
 
 a = Analysis(
